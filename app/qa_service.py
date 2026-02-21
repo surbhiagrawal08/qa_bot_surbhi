@@ -304,7 +304,7 @@ class QAService:
         self.last_token_usage = total_tokens
         
         # Log metrics
-        successful = len([r for r in results.values() if not r.startswith('Error')])
+        successful = len([r for r in results.values() if not r.get("answer", "").startswith('Error')])
         logger.info(f"Batch processing completed", extra={
             'extra_data': {
                 'total_questions': len(questions),
