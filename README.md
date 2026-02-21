@@ -7,11 +7,10 @@ This guide walks you through implementing and testing all features of the Zania 
 1. [Prerequisites](#prerequisites)
 2. [Initial Setup](#initial-setup)
 3. [Running the Application](#running-the-application)
-4. [Testing the API](#testing-the-api)
-5. [Using Docker](#using-docker)
-6. [Using the Frontend](#using-the-frontend)
-7. [Viewing Metrics](#viewing-metrics)
-8. [Running Tests](#running-tests)
+4. [Using Docker](#using-docker)
+5. [Using the Frontend](#using-the-frontend)
+6. [Viewing Metrics](#viewing-metrics)
+7. [Running Tests](#running-tests)
 
 ---
 
