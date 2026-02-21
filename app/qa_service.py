@@ -11,8 +11,13 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 try:
     from langchain.schema import Document
+    from langchain.callbacks.base import BaseCallbackHandler
 except ImportError:
     from langchain_core.documents import Document
+    try:
+        from langchain_core.callbacks import BaseCallbackHandler
+    except ImportError:
+        from langchain.callbacks.base import BaseCallbackHandler
 
 from app.config import OPENAI_API_KEY, OPENAI_MODEL
 
@@ -37,6 +42,38 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 
+class TokenUsageCallback(BaseCallbackHandler):
+    """Callback to track token usage from LLM calls."""
+    def __init__(self):
+        self.total_tokens = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        
+    def on_llm_end(self, response, **kwargs):
+        """Called when LLM finishes."""
+        try:
+            if hasattr(response, 'llm_output') and response.llm_output:
+                usage = response.llm_output.get('token_usage', {})
+                if usage:
+                    self.total_tokens += usage.get('total_tokens', 0)
+                    self.prompt_tokens += usage.get('prompt_tokens', 0)
+                    self.completion_tokens += usage.get('completion_tokens', 0)
+            elif hasattr(response, 'response_metadata'):
+                usage = response.response_metadata.get('token_usage', {})
+                if usage:
+                    self.total_tokens += usage.get('total_tokens', 0)
+                    self.prompt_tokens += usage.get('prompt_tokens', 0)
+                    self.completion_tokens += usage.get('completion_tokens', 0)
+        except Exception as e:
+            logger.debug(f"Error extracting token usage from callback: {e}")
+    
+    def reset(self):
+        """Reset token counts."""
+        self.total_tokens = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+
+
 class QAService:
     """Service for answering questions based on document content."""
     
@@ -51,6 +88,7 @@ class QAService:
         )
         self.vectorstore = None
         self.qa_chain = None
+        self.last_token_usage = 0  # Track token usage from last operation
         
     def load_document(self, document_text: str):
         """
@@ -128,16 +166,53 @@ class QAService:
             raise ValueError("Document must be loaded before answering questions")
         
         start_time = time.time()
+        # Create a new callback for this invocation to avoid race conditions
+        token_callback = TokenUsageCallback()
         try:
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
                 None,
-                lambda: self.qa_chain.invoke({"query": question})
+                lambda: self.qa_chain.invoke(
+                    {"query": question},
+                    config={"callbacks": [token_callback]}  # Pass callback to this invocation
+                )
             )
             
             answer = response.get("result", "Unable to generate answer")
             source_docs = response.get("source_documents", [])
+            
+            # Get token usage from callback (most reliable method)
+            token_usage = token_callback.total_tokens
+            
+            # Fallback: Try to extract from response if callback didn't capture it
+            if token_usage == 0:
+                try:
+                    # Try to get from response dict directly
+                    if isinstance(response, dict):
+                        # Check for llm_output in response
+                        if 'llm_output' in response and response['llm_output']:
+                            usage = response['llm_output'].get('token_usage', {})
+                            if usage:
+                                token_usage = usage.get('total_tokens', 0)
+                        # Check if response has usage_metadata (newer LangChain versions)
+                        elif 'usage_metadata' in response:
+                            usage = response['usage_metadata']
+                            token_usage = usage.get('total_tokens', 0) if isinstance(usage, dict) else 0
+                    # Try to get from response object attributes
+                    elif hasattr(response, 'llm_output') and response.llm_output:
+                        usage = getattr(response.llm_output, 'token_usage', {})
+                        if isinstance(usage, dict):
+                            token_usage = usage.get('total_tokens', 0)
+                    elif hasattr(response, 'usage_metadata'):
+                        usage = response.usage_metadata
+                        if hasattr(usage, 'total_tokens'):
+                            token_usage = usage.total_tokens
+                        elif isinstance(usage, dict):
+                            token_usage = usage.get('total_tokens', 0)
+                except Exception as e:
+                    logger.debug(f"Could not extract token usage: {e}")
+                    token_usage = 0
             
             # Check if answer indicates not found
             is_not_found = (
@@ -152,7 +227,8 @@ class QAService:
                 "answer": answer,
                 "found": not is_not_found,
                 "source_count": len(source_docs),
-                "response_time": round(elapsed, 3)
+                "response_time": round(elapsed, 3),
+                "token_usage": token_usage
             }
         except Exception as e:
             elapsed = time.time() - start_time
@@ -180,6 +256,7 @@ class QAService:
         
         results = {}
         total_start_time = time.time()
+        total_tokens = 0
         
         # Process questions concurrently (batch processing)
         try:
@@ -189,16 +266,21 @@ class QAService:
             logger.error(f"Error in batch processing", extra={
                 'extra_data': {'error': str(e)}
             })
-            answers = [{"answer": f"Error: {str(e)}", "found": False} for _ in questions]
+            answers = [{"answer": f"Error: {str(e)}", "found": False, "token_usage": 0} for _ in questions]
         
-        # Map results back to questions
+        # Map results back to questions and accumulate token usage
         for question, answer_data in zip(questions, answers):
             if isinstance(answer_data, Exception):
                 results[question] = f"Error processing question: {str(answer_data)}"
             else:
                 results[question] = answer_data.get("answer", "Unable to generate answer")
+                # Accumulate token usage
+                total_tokens += answer_data.get("token_usage", 0)
         
         total_time = time.time() - total_start_time
+        
+        # Store total tokens for metrics access
+        self.last_token_usage = total_tokens
         
         # Log metrics
         successful = len([r for r in results.values() if not r.startswith('Error')])
@@ -208,7 +290,8 @@ class QAService:
                 'successful_answers': successful,
                 'total_time_seconds': round(total_time, 3),
                 'average_time_per_question': round(total_time / len(questions), 3) if questions else 0,
-                'throughput_questions_per_second': round(len(questions) / total_time, 2) if total_time > 0 else 0
+                'throughput_questions_per_second': round(len(questions) / total_time, 2) if total_time > 0 else 0,
+                'total_tokens_used': total_tokens
             }
         })
         

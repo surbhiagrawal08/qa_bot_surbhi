@@ -235,6 +235,8 @@ async def process_qa(
                 (metrics["average_response_time"] * (metrics["successful_requests"] - 1) + request_time) 
                 / metrics["successful_requests"]
             )
+            # Update token usage from QA service
+            metrics["total_tokens_used"] += qa_service.last_token_usage
             
             # Log successful processing with metrics
             logger.info("QA processing completed successfully", extra={
@@ -243,7 +245,8 @@ async def process_qa(
                     'document_type': doc_ext,
                     'document_size_bytes': len(document_text),
                     'response_time_seconds': round(request_time, 3),
-                    'questions_per_second': round(len(questions) / request_time, 2) if request_time > 0 else 0
+                    'questions_per_second': round(len(questions) / request_time, 2) if request_time > 0 else 0,
+                    'tokens_used': qa_service.last_token_usage
                 }
             })
             
@@ -291,6 +294,11 @@ async def process_qa_batch(request: BatchQARequest):
         
         qa_service.load_document(request.document_text)
         results = await qa_service.answer_questions(request.questions)
+        # Update metrics
+        metrics["total_requests"] += 1
+        metrics["successful_requests"] += 1
+        metrics["total_questions_processed"] += len(request.questions)
+        metrics["total_tokens_used"] += qa_service.last_token_usage
         return QuestionAnswerResponse(results=results)
     except HTTPException:
         raise
