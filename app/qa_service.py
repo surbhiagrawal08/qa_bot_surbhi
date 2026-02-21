@@ -223,10 +223,21 @@ class QAService:
             
             elapsed = time.time() - start_time
             
+            # Extract citations from source documents
+            citations = []
+            for doc in source_docs:
+                citation_text = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+                citations.append({
+                    "text": citation_text,
+                    "full_text": doc.page_content,
+                    "metadata": getattr(doc, 'metadata', {})
+                })
+            
             return {
                 "answer": answer,
                 "found": not is_not_found,
                 "source_count": len(source_docs),
+                "citations": citations,
                 "response_time": round(elapsed, 3),
                 "token_usage": token_usage
             }
@@ -240,7 +251,7 @@ class QAService:
             })
             raise
     
-    async def answer_questions(self, questions: List[str]) -> Dict[str, str]:
+    async def answer_questions(self, questions: List[str]) -> Dict[str, Dict]:
         """
         Answer a list of questions based on the loaded document.
         Uses async processing for better performance.
@@ -249,7 +260,7 @@ class QAService:
             questions: List of questions to answer
             
         Returns:
-            Dictionary mapping questions to answers
+            Dictionary mapping questions to answer data (including answer, citations, etc.)
         """
         if not self.qa_chain:
             raise ValueError("Document must be loaded before answering questions")
@@ -266,14 +277,24 @@ class QAService:
             logger.error(f"Error in batch processing", extra={
                 'extra_data': {'error': str(e)}
             })
-            answers = [{"answer": f"Error: {str(e)}", "found": False, "token_usage": 0} for _ in questions]
+            answers = [{"answer": f"Error: {str(e)}", "found": False, "citations": [], "token_usage": 0} for _ in questions]
         
         # Map results back to questions and accumulate token usage
         for question, answer_data in zip(questions, answers):
             if isinstance(answer_data, Exception):
-                results[question] = f"Error processing question: {str(answer_data)}"
+                results[question] = {
+                    "answer": f"Error processing question: {str(answer_data)}",
+                    "found": False,
+                    "citations": []
+                }
             else:
-                results[question] = answer_data.get("answer", "Unable to generate answer")
+                # Return full answer data including citations
+                results[question] = {
+                    "answer": answer_data.get("answer", "Unable to generate answer"),
+                    "found": answer_data.get("found", False),
+                    "citations": answer_data.get("citations", []),
+                    "source_count": answer_data.get("source_count", 0)
+                }
                 # Accumulate token usage
                 total_tokens += answer_data.get("token_usage", 0)
         
