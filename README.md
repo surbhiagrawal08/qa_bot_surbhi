@@ -35,7 +35,8 @@ python3 --version
 
 ### Step 1: Navigate to Project Directory
 ```bash
-cd /Users/surbhiagrawal/Desktop/Zania
+git clone <repo_url>
+cd qa_bot_surbhi
 ```
 
 ### Step 2: Create Virtual Environment
@@ -74,7 +75,7 @@ pip install -r requirements.txt
 
 ### Step 5: Set Up Environment Variables
 ```bash
-./setup_env.sh
+./setup_env.sh #change OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 **Or manually:**
@@ -98,19 +99,7 @@ cat .env
 ./run.sh
 ```
 
-**Option B: Manual start**
-```bash
-source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
 
-### Step 2: Verify Server is Running
-
-**Expected output:**
-```
-INFO:     Uvicorn running on http://0.0.0.0:8000
-INFO:     Application startup complete.
-```
 
 ### Step 3: Test Health Endpoint
 
@@ -124,11 +113,6 @@ curl http://localhost:8000/health
 {"status":"healthy"}
 ```
 
-### Step 4: Access API Documentation
-
-Open in browser: **http://localhost:8000/docs**
-
-You should see the Swagger UI with all available endpoints.
 
 ---
 
@@ -382,7 +366,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 **Option A: Direct file open**
 - Navigate to `frontend/` directory
-- Open `index.html` in your web browser
+- Open `index.html` in your web browser (double click on index.html)
 
 **Option B: Serve with Python (Better for CORS)**
 ```bash
@@ -470,18 +454,6 @@ pytest tests/test_api.py -v
 **Integration tests:**
 ```bash
 pytest tests/test_integration.py -v
-```
-
-### Step 3: Run with Coverage
-```bash
-pytest tests/ --cov=app --cov-report=html
-```
-
-**View coverage report:**
-```bash
-open htmlcov/index.html  # macOS
-# or
-xdg-open htmlcov/index.html  # Linux
 ```
 
 ---
