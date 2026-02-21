@@ -441,6 +441,12 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
+## Concurrency & Performance
+
+### Step:
+```accounted for it in main.py and elsewhere needed - async
+```
+
 **Expected**: All tests pass
 
 ### Step 2: Run Specific Test Suites
