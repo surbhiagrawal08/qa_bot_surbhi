@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zania QA Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .upload-section {
+            margin-bottom: 30px;
+        }
+        
+        .file-input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        input[type="file"]:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .result-item {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+        }
+        
+        .question {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .answer {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .error {
+            background: #fee;
+            border-left-color: #e74c3c;
+            color: #c0392b;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        .api-url {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 6px;
+        }
+        
+        .api-url input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Zania QA Bot</h1>
+        <p class="subtitle">Upload questions and documents to get AI-powered answers</p>
+        
+        <div class="api-url">
+            <label for="apiUrl">API URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+        </div>
+        
+        <form id="qaForm">
+            <div class="upload-section">
+                <div class="file-input-group">
+                    <label for="questionsFile">Questions File (JSON):</label>
+                    <input type="file" id="questionsFile" accept=".json" required>
+                </div>
+                
+                <div class="file-input-group">
+                    <label for="documentFile">Document File (PDF or JSON):</label>
+                    <input type="file" id="documentFile" accept=".pdf,.json" required>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn" id="submitBtn">
+                Get Answers
+            </button>
+        </form>
+        
+        <div class="loading" id="loading">
+            ⏳ Processing your questions...
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="results" id="results"></div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('qaForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+        const apiUrlInput = document.getElementById('apiUrl');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const questionsFile = document.getElementById('questionsFile').files[0];
+            const documentFile = document.getElementById('documentFile').files[0];
+            const apiUrl = apiUrlInput.value.trim() || 'http://localhost:8000';
+            
+            if (!questionsFile || !documentFile) {
+                showError('Please select both files');
+                return;
+            }
+            
+            // Reset UI
+            hideError();
+            hideResults();
+            showLoading();
+            submitBtn.disabled = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('questions_file', questionsFile);
+                formData.append('document_file', documentFile);
+                
+                const response = await fetch(`${apiUrl}/qa`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResults(data.results);
+                
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            } finally {
+                hideLoading();
+                submitBtn.disabled = false;
+            }
+        });
+        
+        function showLoading() {
+            loading.classList.add('show');
+        }
+        
+        function hideLoading() {
+            loading.classList.remove('show');
+        }
+        
+        function showResults(resultsData) {
+            results.innerHTML = '<h2 style="margin-bottom: 20px; color: #333;">Results:</h2>';
+            
+            for (const [question, answer] of Object.entries(resultsData)) {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.innerHTML = `
+                    <div class="question">❓ ${question}</div>
+                    <div class="answer">${answer}</div>
+                `;
+                results.appendChild(item);
+            }
+            
+            results.classList.add('show');
+        }
+        
+        function hideResults() {
+            results.classList.remove('show');
+            results.innerHTML = '';
+        }
+        
+        function showError(message) {
+            error.textContent = message;
+            error.classList.add('show');
+        }
+        
+        function hideError() {
+            error.classList.remove('show');
+            error.textContent = '';
+        }
+    </script>
+</body>
+</html>
