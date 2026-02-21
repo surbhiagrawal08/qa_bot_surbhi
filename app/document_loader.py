@@ -37,8 +37,17 @@ def load_json(file_path: str) -> str:
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    # Convert JSON to a readable text format
+    # Handle empty content - if dict has 'content' key with empty value, return empty string
     if isinstance(data, dict):
+        # Check if it's a document with 'content' key
+        if 'content' in data:
+            content = data['content']
+            if isinstance(content, str) and not content.strip():
+                return ""  # Return empty string for empty content
+            elif not content:  # None, empty list, etc.
+                return ""
+        
+        # Convert JSON to a readable text format
         text_parts = []
         for key, value in data.items():
             if isinstance(value, (dict, list)):

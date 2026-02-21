@@ -1,13 +1,15 @@
 # Core web framework
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# Upgraded uvicorn for better --reload-dir support to avoid watching venv
+uvicorn[standard]>=0.24.0
 python-multipart==0.0.6
 
 # LangChain and OpenAI
-langchain>=0.1.0,<0.2.0
-langchain-openai>=0.0.5
-langchain-community>=0.0.20
-langchain-core>=0.1.0
+langchain==0.2.16
+langchain-openai==0.1.25
+langchain-community==0.2.16
+# langchain-openai 0.1.25 requires langchain-core>=0.2.40
+langchain-core>=0.2.40,<0.3.0
 
 # Vector database
 chromadb==0.4.22
@@ -16,7 +18,8 @@ chromadb==0.4.22
 pypdf==3.17.4
 
 # Data validation
-pydantic==2.5.2
+# langchain-core 0.2.38 requires pydantic>=2.7.4 for Python 3.12.4+
+pydantic>=2.7.4,<3.0.0
 
 # Environment variables
 python-dotenv==1.0.0

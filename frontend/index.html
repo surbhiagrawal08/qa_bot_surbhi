@@ -235,15 +235,27 @@
                 });
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.detail || errorMessage;
+                    } catch (e) {
+                        // If response is not JSON, use status text
+                        const text = await response.text();
+                        if (text) errorMessage = text;
+                    }
+                    throw new Error(errorMessage);
                 }
                 
                 const data = await response.json();
+                if (!data.results) {
+                    throw new Error('Invalid response format: missing results');
+                }
                 showResults(data.results);
                 
             } catch (err) {
-                showError(`Error: ${err.message}`);
+                console.error('Error details:', err);
+                showError(`Error: ${err.message}. Make sure the API server is running at ${apiUrl}`);
             } finally {
                 hideLoading();
                 submitBtn.disabled = false;

@@ -164,7 +164,7 @@ class QAService:
             })
             raise
     
-    def answer_questions(self, questions: List[str]) -> Dict[str, str]:
+    async def answer_questions(self, questions: List[str]) -> Dict[str, str]:
         """
         Answer a list of questions based on the loaded document.
         Uses async processing for better performance.
@@ -182,13 +182,9 @@ class QAService:
         total_start_time = time.time()
         
         # Process questions concurrently (batch processing)
-        async def process_all():
-            tasks = [self.answer_question_async(q) for q in questions]
-            return await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Run async processing
         try:
-            answers = asyncio.run(process_all())
+            tasks = [self.answer_question_async(q) for q in questions]
+            answers = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
             logger.error(f"Error in batch processing", extra={
                 'extra_data': {'error': str(e)}

@@ -3,7 +3,8 @@ import json
 import os
 import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
+import asyncio
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -160,10 +161,10 @@ def test_qa_endpoint_empty_document():
         os.unlink(doc_path)
 
 
-@patch('app.qa_service.QAService.answer_questions')
+@patch('app.qa_service.QAService.answer_questions', new_callable=AsyncMock)
 def test_qa_endpoint_success_with_mocked_llm(mock_answer):
     """Test successful QA endpoint with mocked LLM."""
-    # Mock the answer_questions method
+    # Mock the answer_questions method (now async)
     mock_answer.return_value = {
         "What is AI?": "AI is Artificial Intelligence.",
         "What is ML?": "ML is Machine Learning."
@@ -206,7 +207,7 @@ def test_batch_endpoint_basic():
         "document_text": "AI stands for Artificial Intelligence. ML stands for Machine Learning."
     }
     
-    with patch('app.qa_service.QAService.answer_questions') as mock_answer:
+    with patch('app.qa_service.QAService.answer_questions', new_callable=AsyncMock) as mock_answer:
         mock_answer.return_value = {
             "What is AI?": "AI stands for Artificial Intelligence.",
             "What is ML?": "ML stands for Machine Learning."
@@ -231,7 +232,7 @@ def test_response_format_validity():
     
     try:
         with open(questions_path, 'rb') as qf, open(doc_path, 'rb') as df:
-            with patch('app.qa_service.QAService.answer_questions') as mock_answer:
+            with patch('app.qa_service.QAService.answer_questions', new_callable=AsyncMock) as mock_answer:
                 mock_answer.return_value = {"Test question?": "Test answer"}
                 
                 response = client.post(
@@ -249,5 +250,13 @@ def test_response_format_validity():
                 assert isinstance(data, dict)
                 assert "results" in data
                 assert isinstance(data["results"], dict)
-                assert all(isinstance(k, str) and isinstance(v, str) 
-                          for k, v in data["results"].items())
+                assert all(
+                    isinstance(k, str) and isinstance(v, str)
+                    for k, v in data["results"].items()
+                )
+    finally:
+        # Clean up temporary files
+        if os.path.exists(questions_path):
+            os.unlink(questions_path)
+        if os.path.exists(doc_path):
+            os.unlink(doc_path)

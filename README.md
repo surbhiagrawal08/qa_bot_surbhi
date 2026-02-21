@@ -67,9 +67,9 @@ pip install -r requirements.txt
 
 **Expected output**: All packages install successfully
 
-**Troubleshooting**: If some packages fail, try:
+<!-- **Troubleshooting**: If some packages fail, try:
 ```bash
-./install_fixed.sh
+./install_fixed.sh -->
 ```
 
 ### Step 5: Set Up Environment Variables

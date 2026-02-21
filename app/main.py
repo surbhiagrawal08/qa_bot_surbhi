@@ -6,7 +6,8 @@ import json
 import logging
 from typing import Dict, List
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.document_loader import load_pdf, load_json, load_questions
@@ -43,6 +44,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Configure CORS to allow frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Track startup time for metrics
 @app.on_event("startup")
 async def startup_event():
@@ -68,6 +78,12 @@ class QuestionAnswerResponse(BaseModel):
     results: Dict[str, str]
 
 
+class BatchQARequest(BaseModel):
+    """Request model for batch QA endpoint."""
+    questions: List[str]
+    document_text: str
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""
@@ -85,6 +101,12 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Handle favicon requests to avoid 404 logs."""
+    return Response(status_code=204)  # No Content
 
 
 @app.get("/metrics")
@@ -203,7 +225,7 @@ async def process_qa(
             
             # Process with QA service
             qa_service.load_document(document_text)
-            results = qa_service.answer_questions(questions)
+            results = await qa_service.answer_questions(questions)
             
             # Calculate metrics
             request_time = time.time() - request_start_time
@@ -243,25 +265,35 @@ async def process_qa(
         )
 
 
-@app.post("/qa/batch")
-async def process_qa_batch(
-    questions: List[str],
-    document_text: str
-):
+@app.post("/qa/batch", response_model=QuestionAnswerResponse)
+async def process_qa_batch(request: BatchQARequest):
     """
     Process questions with document text directly (for testing).
     
     Args:
-        questions: List of questions
-        document_text: Document text content
+        request: BatchQARequest containing questions and document_text
         
     Returns:
         JSON response with question-answer pairs
     """
     try:
-        qa_service.load_document(document_text)
-        results = qa_service.answer_questions(questions)
+        if not request.document_text or not request.document_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Document text cannot be empty"
+            )
+        
+        if not request.questions:
+            raise HTTPException(
+                status_code=400,
+                detail="Questions list cannot be empty"
+            )
+        
+        qa_service.load_document(request.document_text)
+        results = await qa_service.answer_questions(request.questions)
         return QuestionAnswerResponse(results=results)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
