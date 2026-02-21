@@ -73,9 +73,22 @@ metrics = {
 }
 
 
+class Citation(BaseModel):
+    """Citation model for source documents."""
+    text: str
+    full_text: str
+    metadata: Dict = {}
+
+class AnswerData(BaseModel):
+    """Answer data model including citations."""
+    answer: str
+    found: bool
+    citations: List[Citation] = []
+    source_count: int = 0
+
 class QuestionAnswerResponse(BaseModel):
-    """Response model for question-answer pairs."""
-    results: Dict[str, str]
+    """Response model for question-answer pairs with citations."""
+    results: Dict[str, AnswerData]
 
 
 class BatchQARequest(BaseModel):
