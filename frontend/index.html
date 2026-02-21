@@ -132,6 +132,41 @@
             line-height: 1.6;
         }
         
+        .citations {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .citations-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .citation-item {
+            background: #f0f0ff;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #555;
+            border-left: 3px solid #667eea;
+        }
+        
+        .citation-text {
+            line-height: 1.5;
+        }
+        
+        .no-citations {
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+        }
+        
         .error {
             background: #fee;
             border-left-color: #e74c3c;
@@ -273,12 +308,44 @@
         function showResults(resultsData) {
             results.innerHTML = '<h2 style="margin-bottom: 20px; color: #333;">Results:</h2>';
             
-            for (const [question, answer] of Object.entries(resultsData)) {
+            for (const [question, answerData] of Object.entries(resultsData)) {
                 const item = document.createElement('div');
                 item.className = 'result-item';
+                
+                // Handle both old format (string) and new format (object with citations)
+                let answerText, citations = [];
+                if (typeof answerData === 'string') {
+                    // Backward compatibility with old format
+                    answerText = answerData;
+                } else {
+                    // New format with citations
+                    answerText = answerData.answer || answerData;
+                    citations = answerData.citations || [];
+                }
+                
+                let citationsHtml = '';
+                if (citations && citations.length > 0) {
+                    citationsHtml = '<div class="citations">';
+                    citationsHtml += '<div class="citations-title">📚 Sources (' + citations.length + '):</div>';
+                    citations.forEach((citation, index) => {
+                        const citationText = citation.text || citation.full_text || citation;
+                        citationsHtml += `
+                            <div class="citation-item">
+                                <div class="citation-text">
+                                    <strong>[${index + 1}]</strong> ${citationText}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    citationsHtml += '</div>';
+                } else if (typeof answerData === 'object' && answerData.found === false) {
+                    citationsHtml = '<div class="citations"><div class="no-citations">No sources found - answer not in document</div></div>';
+                }
+                
                 item.innerHTML = `
                     <div class="question">❓ ${question}</div>
-                    <div class="answer">${answer}</div>
+                    <div class="answer">${answerText}</div>
+                    ${citationsHtml}
                 `;
                 results.appendChild(item);
             }
