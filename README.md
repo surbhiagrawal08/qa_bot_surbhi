@@ -444,8 +444,8 @@ pytest tests/ -v
 ## Concurrency & Performance
 
 ### Step:
-```accounted for it in main.py and elsewhere needed - async
-```
+accounted for it in main.py and elsewhere needed - async
+
 
 **Expected**: All tests pass
 
